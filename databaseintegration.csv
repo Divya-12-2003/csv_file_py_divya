@@ -1,0 +1,258 @@
+CREATE CSV FILE USING DATABASE INTEGRATION:
+
+Step 1: Setting Up the Flask Application
+/my_flask_app
+    /templates
+        home.html
+        form.html
+        display.html
+        login.html
+        register.html
+    app.py
+    models.py
+    forms.py
+    database.db
+Step 2: Create a Virtual Environment
+Create a virtual environment
+
+python -m venv venv
+Activate the virtual environment:
+
+venv\Scripts\activate
+ 
+Install Flask:
+
+pip install Flask Flask-SQLAlchemy Flask-Login
+
+Step 3: Create the Database Model
+models.py
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+
+db = SQLAlchemy()
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+
+class Student(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
+    grade = db.Column(db.Float, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+Step 4: Create Forms
+forms.py
+python
+
+from flask_wtf import FlaskForm
+from wtforms import StringField, IntegerField, FloatField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Length, EqualTo
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=150)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Register')
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
+
+class StudentForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    age = IntegerField('Age', validators=[DataRequired()])
+    grade = FloatField('Grade', validators=[DataRequired()])
+    submit = SubmitField('Submit')
+Step 5: Create the Flask Application
+app.py
+python
+
+from flask import Flask, render_template, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from forms import RegistrationForm, LoginForm, StudentForm
+from models import db, User, Student
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        new_user = User(username=form.username.data, password=form.password.data)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.password == form.password.data:
+            login_user(user)
+            return redirect(url_for('home'))
+        flash('Login failed. Check your username and password.', 'danger')
+    return render_template('login.html', form=form)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/')
+@login_required
+def home():
+    return render_template('home.html')
+
+@app.route('/form', methods=['GET', 'POST'])
+@login_required
+def form_page():
+    form = StudentForm()
+    if form.validate_on_submit():
+        new_student = Student(
+            name=form.name.data,
+            age=form.age.data,
+            grade=form.grade.data,
+            user_id=current_user.id
+        )
+        db.session.add(new_student)
+        db.session.commit()
+        flash('Student data submitted successfully!', 'success')
+        return redirect(url_for('display_page'))
+    return render_template('form.html', form=form)
+
+@app.route('/display')
+@login_required
+def display_page():
+    students = Student.query.filter_by(user_id=current_user.id).all()
+    return render_template('display.html', students=students)
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()  # Create database tables
+    app.run(debug=True)
+Step 6: HTML Templates
+home.html
+html
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Home</title>
+</head>
+<body>
+    <h1>Welcome, {{ current_user.username }}!</h1>
+    <a href="/form">Submit Student Information</a>
+    <a href="/display">View Student Data</a>
+    <a href="/logout">Logout</a>
+</body>
+</html>
+form.html
+html
+Copy code
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Submit Student Information</title>
+</head>
+<body>
+    <h1>Submit Student Information</h1>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        {{ form.name.label }} {{ form.name() }}<br>
+        {{ form.age.label }} {{ form.age() }}<br>
+        {{ form.grade.label }} {{ form.grade() }}<br>
+        {{ form.submit() }}
+    </form>
+</body>
+</html>
+display.html
+html
+Copy code
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Data</title>
+</head>
+<body>
+    <h1>Your Submitted Students</h1>
+    <ul>
+        {% for student in students %}
+            <li>Name: {{ student.name }}, Age: {{ student.age }}, Grade: {{ student.grade }}</li>
+        {% endfor %}
+    </ul>
+    <a href="/">Go Home</a>
+</body>
+</html>
+login.html
+html
+Copy code
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+</head>
+<body>
+    <h1>Login</h1>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        {{ form.username.label }} {{ form.username() }}<br>
+        {{ form.password.label }} {{ form.password() }}<br>
+        {{ form.submit() }}
+    </form>
+</body>
+</html>
+register.html
+html
+Copy code
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+</head>
+<body>
+    <h1>Register</h1>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        {{ form.username.label }} {{ form.username() }}<br>
+        {{ form.password.label }} {{ form.password() }}<br>
+        {{ form.confirm_password.label }} {{ form.confirm_password() }}<br>
+        {{ form.submit() }}
+    </form>
+</body>
+</html>
+
+Step 7: Running the Application
+Run the Flask application:
+
+python app.py
+
+Access the application:
+
+Open your browser and go to http://127.0.0.1:5000/.
+Register a new user, log in, and test the form submission.

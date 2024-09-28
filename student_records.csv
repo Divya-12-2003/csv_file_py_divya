@@ -1,0 +1,51 @@
+import csv
+
+def read_student_records(file_path):
+    """Read student records from a CSV file."""
+    students = []
+    try:
+        with open(file_path, mode='r', newline='') as file:
+            csv_reader = csv.DictReader(file)
+            for row in csv_reader:
+                students.append({
+                    'name': row['name'],
+                    'age': int(row['age']),
+                    'grade': float(row['grade'])
+                })
+    except FileNotFoundError:
+        print(f"Error: The file {file_path} was not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    return students
+
+def calculate_average_grade(students):
+    """Calculate the average grade of all students."""
+    if not students:
+        return 0
+    total_grade = sum(student['grade'] for student in students)
+    return total_grade / len(students)
+
+def find_highest_grade_student(students):
+    """Find the student with the highest grade."""
+    if not students:
+        return None
+    return max(students, key=lambda x: x['grade'])
+
+if __name__ == "__main__":
+    file_path = 'students.csv'  # Update with your CSV file path
+    students = read_student_records(file_path)
+    
+    average_grade = calculate_average_grade(students)
+    print(f'Average Grade: {average_grade:.2f}')
+    
+    top_student = find_highest_grade_student(students)
+    if top_student:
+        print(f'Top Student: {top_student["name"]} with a grade of {top_student["grade"]}')
+    else:
+        print("No student records found.")
+ 
+
+
+OUTPUT:
+Average Grade: 86.50
+Top Student: Divya with a grade of 92.5
